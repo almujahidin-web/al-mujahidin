@@ -1,11 +1,661 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <title>Masjid An-Nur</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Keuangan Masjid</title>
+    <!-- Muat Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7fafc; /* light gray background */
+        }
+        .container-app {
+            max-width: 1000px; /* Lebar lebih besar untuk tabel */
+            margin: 0 auto;
+            padding: 1rem;
+        }
+        .card {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        }
+        /* Custom scrollbar for table wrapper */
+        #tableWrapper {
+            max-height: 50vh;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+        }
+        #tableWrapper::-webkit-scrollbar {
+            width: 8px;
+        }
+        #tableWrapper::-webkit-scrollbar-thumb {
+            background-color: #a0aec0;
+            border-radius: 4px;
+        }
+        /* Ensure table header stays visible */
+        #transactionTable thead th {
+            position: sticky;
+            top: 0;
+            background-color: #f7fafc; /* light gray background */
+            z-index: 10;
+        }
+    </style>
 </head>
 <body>
-  <h1>Selamat Datang di Masjid An-Nur</h1>
-  <p>Website resmi masjid kami.</p>
+
+    <div id="loadingIndicator" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
+        <div class="text-white text-xl p-4 bg-blue-600 rounded-lg shadow-lg">Memuat Data Keuangan...</div>
+    </div>
+
+    <div class="container-app opacity-0 transition-opacity duration-500" id="mainApp">
+        <header class="text-center py-6 border-b-4 border-emerald-500 mb-6">
+            <h1 class="text-3xl font-extrabold text-gray-800">Laporan Keuangan Pembangunan Masjid</h1>
+            <p id="userIdDisplay" class="text-sm mt-1 text-gray-500">ID Pengguna: Memuat...</p>
+        </header>
+
+        <!-- Ringkasan Keuangan -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <!-- Total Pemasukan -->
+            <div class="card bg-white p-5 rounded-xl border-t-4 border-green-500">
+                <p class="text-sm font-semibold text-green-600 uppercase">Total Pemasukan</p>
+                <p id="totalIncome" class="text-3xl font-bold mt-1 text-gray-900">Rp 0</p>
+            </div>
+            <!-- Total Pengeluaran -->
+            <div class="card bg-white p-5 rounded-xl border-t-4 border-red-500">
+                <p class="text-sm font-semibold text-red-600 uppercase">Total Pengeluaran</p>
+                <p id="totalExpense" class="text-3xl font-bold mt-1 text-gray-900">Rp 0</p>
+            </div>
+            <!-- Saldo Akhir -->
+            <div class="card bg-white p-5 rounded-xl border-t-4 border-blue-500">
+                <p class="text-sm font-semibold text-blue-600 uppercase">Saldo Akhir</p>
+                <p id="balance" class="text-3xl font-bold mt-1 text-gray-900">Rp 0</p>
+            </div>
+        </div>
+
+        <!-- Formulir Input Transaksi -->
+        <div class="card bg-white p-6 rounded-xl mb-8">
+            <h2 class="text-2xl font-bold mb-4 text-gray-700">Input Transaksi Baru</h2>
+            <form id="transactionForm" class="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+                <div class="md:col-span-1">
+                    <label for="type" class="block text-sm font-medium text-gray-700 mb-1">Jenis</label>
+                    <select id="type" name="type" required class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                        <option value="Income">Pemasukan</option>
+                        <option value="Expense">Pengeluaran</option>
+                    </select>
+                </div>
+                <div class="md:col-span-2">
+                    <label for="description" class="block text-sm font-medium text-gray-700 mb-1">Deskripsi</label>
+                    <input type="text" id="description" name="description" required class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" placeholder="Contoh: Donasi Hamba Allah">
+                </div>
+                <div class="md:col-span-1">
+                    <label for="amount" class="block text-sm font-medium text-gray-700 mb-1">Jumlah (Rp)</label>
+                    <input type="number" id="amount" name="amount" required min="1" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" placeholder="Cth: 1000000">
+                </div>
+                <div class="md:col-span-1">
+                    <label for="date" class="block text-sm font-medium text-gray-700 mb-1">Tanggal</label>
+                    <input type="date" id="date" name="date" required class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div class="md:col-span-1">
+                    <button type="submit" id="submitButton" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 px-4 rounded-md transition duration-150">
+                        Tambah
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Daftar Transaksi (Menggunakan Tabel) -->
+        <div class="card bg-white p-6 rounded-xl">
+            <h2 class="text-2xl font-bold mb-4 text-gray-700">Daftar Transaksi</h2>
+            
+            <div id="tableWrapper" class="overflow-x-auto rounded-lg">
+                <table id="transactionTable" class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Tanggal</th>
+                            <th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Jenis</th>
+                            <th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">Deskripsi</th>
+                            <th class="px-6 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">Jumlah (Rp)</th>
+                            <th class="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transactionList" class="bg-white divide-y divide-gray-200">
+                        <!-- Transaction rows will be inserted here by JavaScript -->
+                    </tbody>
+                </table>
+                <p id="emptyState" class="text-center text-gray-500 py-4 hidden">Belum ada transaksi. Silakan tambahkan satu di atas.</p>
+            </div>
+            
+            <button id="ttsButton" class="mt-4 bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-md transition duration-150 flex items-center justify-center disabled:opacity-50" disabled>
+                <svg id="ttsIcon" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.818 5.818a4 4 0 012.83 1.171M10 12a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                <svg id="ttsLoading" class="animate-spin w-5 h-5 mr-2 hidden" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                Bacakan Ringkasan
+            </button>
+            <audio id="audioPlayer" class="mt-4 w-full hidden" controls></audio>
+        </div>
+    </div>
+    
+    <!-- Modal untuk Edit Transaksi -->
+    <div id="editModal" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-xl w-full max-w-md card">
+            <h3 class="text-xl font-bold mb-4">Edit Transaksi</h3>
+            <form id="editForm">
+                <input type="hidden" id="editId">
+                
+                <div class="mb-4">
+                    <label for="editType" class="block text-sm font-medium text-gray-700">Jenis</label>
+                    <select id="editType" name="editType" required class="mt-1 w-full p-2 border border-gray-300 rounded-md">
+                        <option value="Income">Pemasukan</option>
+                        <option value="Expense">Pengeluaran</option>
+                    </select>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="editDescription" class="block text-sm font-medium text-gray-700">Deskripsi</label>
+                    <input type="text" id="editDescription" name="editDescription" required class="mt-1 w-full p-2 border border-gray-300 rounded-md">
+                </div>
+                
+                <div class="mb-4">
+                    <label for="editAmount" class="block text-sm font-medium text-gray-700">Jumlah (Rp)</label>
+                    <input type="number" id="editAmount" name="editAmount" required min="1" class="mt-1 w-full p-2 border border-gray-300 rounded-md">
+                </div>
+                
+                <div class="mb-6">
+                    <label for="editDate" class="block text-sm font-medium text-gray-700">Tanggal</label>
+                    <input type="date" id="editDate" name="editDate" required class="mt-1 w-full p-2 border border-gray-300 rounded-md">
+                </div>
+                
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeEditModal()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-md transition duration-150">Batal</button>
+                    <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-md transition duration-150">Simpan Perubahan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- Skrip Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // Atur log level untuk debugging
+        setLogLevel('Debug');
+
+        // --- Variabel Global Firebase dari Lingkungan Canvas ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db;
+        let auth;
+        let userId = null;
+        let isAuthReady = false;
+        
+        const TRANSACTION_COLLECTION = 'masjid_finance'; // Nama koleksi di Firestore
+        const API_KEY = ""; // Kunci API untuk Google Gemini (dibiarkan kosong)
+        const GEMINI_TTS_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${API_KEY}`;
+        
+        // Elemen UI
+        const mainApp = document.getElementById('mainApp');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        // transactionList sekarang adalah <tbody> dari tabel
+        const transactionList = document.getElementById('transactionList'); 
+        const transactionForm = document.getElementById('transactionForm');
+        const emptyState = document.getElementById('emptyState');
+        const editModal = document.getElementById('editModal');
+        const editForm = document.getElementById('editForm');
+        const ttsButton = document.getElementById('ttsButton');
+        const ttsIcon = document.getElementById('ttsIcon');
+        const ttsLoading = document.getElementById('ttsLoading');
+        const audioPlayer = document.getElementById('audioPlayer');
+
+        // --- Inisialisasi Firebase dan Otentikasi ---
+        if (firebaseConfig) {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            
+            // Listener status otentikasi
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    userId = user.uid;
+                    document.getElementById('userIdDisplay').textContent = `ID Pengguna: ${userId}`;
+                    isAuthReady = true;
+                    // Mulai mendengarkan data setelah otentikasi siap
+                    if (db) {
+                        listenForTransactions();
+                        mainApp.classList.remove('opacity-0');
+                        loadingIndicator.classList.add('hidden');
+                        ttsButton.disabled = false;
+                    }
+                } else {
+                    // Coba sign in dengan token atau anonim
+                    try {
+                        if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (error) {
+                        console.error("Firebase Auth Error:", error);
+                        // Mengganti alert() dengan pesan di UI
+                        document.getElementById('loadingIndicator').innerHTML = '<div class="text-white text-xl p-4 bg-red-600 rounded-lg shadow-lg">Gagal melakukan otentikasi. Silakan refresh halaman.</div>';
+                        loadingIndicator.classList.remove('hidden');
+                    }
+                }
+            });
+
+            // Lakukan sign in awal
+            if (!auth.currentUser) {
+                // onAuthStateChanged akan menangani sign in jika auth.currentUser null
+            }
+
+        } else {
+            console.error("Firebase config is missing.");
+            loadingIndicator.innerHTML = '<div class="text-white text-xl p-4 bg-red-600 rounded-lg shadow-lg">Kesalahan Konfigurasi Firebase</div>';
+        }
+
+        // --- Path Firestore ---
+        const getCollectionPath = () => {
+            if (!userId) {
+                console.error("User ID not available.");
+                return null;
+            }
+            // Menggunakan path private: /artifacts/{appId}/users/{userId}/{collectionName}
+            return `artifacts/${appId}/users/${userId}/${TRANSACTION_COLLECTION}`;
+        };
+
+        const getDocPath = (docId) => {
+            return `${getCollectionPath()}/${docId}`;
+        };
+
+        // --- CRUD Operations ---
+
+        // CREATE / UPDATE Transaction
+        const saveTransaction = async (data, docId = null) => {
+            const path = getCollectionPath();
+            if (!path) return;
+
+            const submitBtn = document.getElementById('submitButton');
+            submitBtn.disabled = true;
+            submitBtn.textContent = docId ? 'Menyimpan...' : 'Menambah...';
+
+            try {
+                const transactionData = {
+                    type: data.type,
+                    description: data.description,
+                    amount: Number(data.amount),
+                    date: data.date,
+                    timestamp: serverTimestamp() // Gunakan timestamp server untuk sorting
+                };
+
+                if (docId) {
+                    // Update existing
+                    await updateDoc(doc(db, getDocPath(docId)), transactionData);
+                    console.log("Document successfully updated!");
+                } else {
+                    // Add new
+                    await addDoc(collection(db, path), transactionData);
+                    console.log("Document successfully added!");
+                }
+                
+                // Hanya reset form input jika tidak sedang dalam mode edit
+                if (!docId) {
+                    transactionForm.reset();
+                    // Kembalikan tanggal default setelah reset
+                    document.getElementById('date').value = new Date().toISOString().split('T')[0];
+                }
+            } catch (e) {
+                console.error("Error adding/updating document: ", e);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = docId ? 'Simpan Perubahan' : 'Tambah';
+            }
+        };
+
+        // DELETE Transaction
+        window.deleteTransaction = async (docId) => {
+            // Mengganti window.confirm dengan tampilan pesan sederhana
+            const isConfirmed = prompt('Untuk menghapus transaksi, ketik "HAPUS" (kapital).');
+            if (isConfirmed !== 'HAPUS') return;
+
+            try {
+                await deleteDoc(doc(db, getDocPath(docId)));
+                console.log("Document successfully deleted!");
+            } catch (e) {
+                console.error("Error deleting document: ", e);
+            }
+        };
+
+        // --- Real-time READ (onSnapshot) ---
+        const listenForTransactions = () => {
+            const path = getCollectionPath();
+            if (!path) return;
+
+            const q = collection(db, path);
+            
+            // onSnapshot provides real-time updates
+            onSnapshot(q, (snapshot) => {
+                const transactions = [];
+                snapshot.forEach((doc) => {
+                    transactions.push({ id: doc.id, ...doc.data() });
+                });
+                
+                // Urutkan berdasarkan tanggal (date string) dan timestamp (untuk waktu yang sama)
+                transactions.sort((a, b) => {
+                    // Mengurutkan secara descending (terbaru di atas)
+                    if (a.date < b.date) return 1;
+                    if (a.date > b.date) return -1;
+                    
+                    const tsA = a.timestamp ? a.timestamp.toDate().getTime() : 0;
+                    const tsB = b.timestamp ? b.timestamp.toDate().getTime() : 0;
+
+                    return tsB - tsA; // Urutkan terbaru di atas jika tanggal sama
+                });
+
+                renderTransactions(transactions);
+                calculateSummary(transactions);
+            }, (error) => {
+                console.error("Error listening to collection: ", error);
+            });
+        };
+
+        // --- Rendering dan Kalkulasi ---
+        const formatCurrency = (amount) => {
+            return new Intl.NumberFormat('id-ID', {
+                style: 'currency',
+                currency: 'IDR',
+                minimumFractionDigits: 0
+            }).format(amount);
+        };
+
+        const calculateSummary = (transactions) => {
+            let totalIncome = 0;
+            let totalExpense = 0;
+
+            transactions.forEach(t => {
+                if (t.type === 'Income') {
+                    totalIncome += t.amount;
+                } else if (t.type === 'Expense') {
+                    totalExpense += t.amount;
+                }
+            });
+
+            const balance = totalIncome - totalExpense;
+
+            document.getElementById('totalIncome').textContent = formatCurrency(totalIncome);
+            document.getElementById('totalExpense').textContent = formatCurrency(totalExpense);
+            
+            const balanceEl = document.getElementById('balance');
+            balanceEl.textContent = formatCurrency(balance);
+            
+            // Warna saldo
+            balanceEl.classList.remove('text-red-500', 'text-green-500');
+            if (balance < 0) {
+                balanceEl.classList.add('text-red-500');
+            } else if (balance > 0) {
+                balanceEl.classList.add('text-green-500');
+            }
+        };
+
+        const renderTransactions = (transactions) => {
+            transactionList.innerHTML = '';
+
+            if (transactions.length === 0) {
+                emptyState.classList.remove('hidden');
+                document.getElementById('transactionTable').classList.add('hidden');
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+                document.getElementById('transactionTable').classList.remove('hidden');
+            }
+
+            transactions.forEach(t => {
+                const isIncome = t.type === 'Income';
+                
+                // Menentukan warna highlight untuk baris
+                const rowClass = isIncome 
+                    ? 'bg-green-50 hover:bg-green-100 transition duration-150' 
+                    : 'bg-red-50 hover:bg-red-100 transition duration-150';
+                
+                // Menentukan warna teks untuk jumlah
+                const amountColor = isIncome ? 'text-green-700' : 'text-red-700';
+
+                const transactionEl = document.createElement('tr');
+                transactionEl.className = rowClass;
+                
+                transactionEl.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${t.date}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold ${amountColor}">${isIncome ? 'Pemasukan' : 'Pengeluaran'}</td>
+                    <td class="px-6 py-4 text-sm text-gray-900 truncate max-w-xs">${t.description}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-base font-bold ${amountColor}">${formatCurrency(t.amount)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                        <div class="flex justify-center space-x-2">
+                            <button onclick="openEditModal('${t.id}', '${t.type}', '${t.description.replace(/'/g, "\\'")}', ${t.amount}, '${t.date}')" class="text-blue-500 hover:text-blue-700 p-1 rounded-full hover:bg-blue-200 transition" title="Edit">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                            </button>
+                            <button onclick="deleteTransaction('${t.id}')" class="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-200 transition" title="Hapus">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                transactionList.appendChild(transactionEl);
+            });
+        };
+
+        // --- Modals dan Handlers UI ---
+
+        window.openEditModal = (id, type, description, amount, date) => {
+            document.getElementById('editId').value = id;
+            document.getElementById('editType').value = type;
+            document.getElementById('editDescription').value = description;
+            document.getElementById('editAmount').value = amount;
+            document.getElementById('editDate').value = date;
+            editModal.classList.remove('hidden');
+            editModal.classList.add('flex');
+        };
+
+        window.closeEditModal = () => {
+            editModal.classList.add('hidden');
+            editModal.classList.remove('flex');
+        };
+
+        transactionForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const data = {
+                type: document.getElementById('type').value,
+                description: document.getElementById('description').value,
+                amount: document.getElementById('amount').value,
+                date: document.getElementById('date').value
+            };
+            saveTransaction(data);
+        });
+
+        editForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const docId = document.getElementById('editId').value;
+            const data = {
+                type: document.getElementById('editType').value,
+                description: document.getElementById('editDescription').value,
+                amount: document.getElementById('editAmount').value,
+                date: document.getElementById('editDate').value
+            };
+            saveTransaction(data, docId);
+            closeEditModal();
+        });
+        
+        // Atur tanggal default ke hari ini
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('date').value = today;
+        
+        // --- TTS (Text-to-Speech) Helper Functions ---
+
+        // Konversi Base64 ke ArrayBuffer
+        const base64ToArrayBuffer = (base64) => {
+            const binaryString = atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        };
+
+        // Konversi PCM (Signed 16-bit) ke format WAV Blob
+        const pcmToWav = (pcmData, sampleRate) => {
+            const numChannels = 1;
+            const bytesPerSample = 2; // 16-bit PCM
+            const blockAlign = numChannels * bytesPerSample;
+            const byteRate = sampleRate * blockAlign;
+            const dataSize = pcmData.length * bytesPerSample;
+            const buffer = new ArrayBuffer(44 + dataSize);
+            const view = new DataView(buffer);
+
+            // Tulis Header WAV
+            let offset = 0;
+            const writeString = (str) => {
+                for (let i = 0; i < str.length; i++) {
+                    view.setUint8(offset + i, str.charCodeAt(i));
+                }
+                offset += str.length;
+            };
+            const writeUint32 = (val) => {
+                view.setUint32(offset, val, true);
+                offset += 4;
+            };
+            const writeUint16 = (val) => {
+                view.setUint16(offset, val, true);
+                offset += 2;
+            };
+
+            // RIFF chunk
+            writeString('RIFF');
+            writeUint32(36 + dataSize); // ChunkSize
+            writeString('WAVE');
+
+            // FMT sub-chunk
+            writeString('fmt ');
+            writeUint32(16); // Subchunk1Size
+            writeUint16(1); // AudioFormat (1 for PCM)
+            writeUint16(numChannels);
+            writeUint32(sampleRate);
+            writeUint32(byteRate);
+            writeUint16(blockAlign);
+            writeUint16(16); // BitsPerSample
+
+            // DATA sub-chunk
+            writeString('data');
+            writeUint32(dataSize);
+
+            // PCM data (signed 16-bit little-endian)
+            for (let i = 0; i < pcmData.length; i++) {
+                view.setInt16(offset, pcmData[i], true);
+                offset += 2;
+            }
+
+            return new Blob([buffer], { type: 'audio/wav' });
+        };
+
+        // --- TTS Implementation ---
+        
+        const generateSummaryText = () => {
+            const income = document.getElementById('totalIncome').textContent;
+            const expense = document.getElementById('totalExpense').textContent;
+            const balance = document.getElementById('balance').textContent;
+            
+            return `Laporan keuangan pembangunan masjid saat ini. Total pemasukan adalah ${income}. Total pengeluaran adalah ${expense}. Saldo akhir saat ini adalah ${balance}.`;
+        };
+
+        const generateTtsAudio = async (text) => {
+            ttsButton.disabled = true;
+            ttsIcon.classList.add('hidden');
+            ttsLoading.classList.remove('hidden');
+            audioPlayer.classList.add('hidden');
+            
+            const payload = {
+                contents: [{
+                    parts: [{ text: `Say with a friendly and clear tone in Indonesian: ${text}` }]
+                }],
+                generationConfig: {
+                    responseModalities: ["AUDIO"],
+                    speechConfig: {
+                        voiceConfig: {
+                            prebuiltVoiceConfig: { voiceName: "Kore" } // Suara yang jelas
+                        }
+                    }
+                },
+                model: "gemini-2.5-flash-preview-tts"
+            };
+
+            const maxRetries = 3;
+            let currentDelay = 1000;
+
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(GEMINI_TTS_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response.status === 429 && i < maxRetries - 1) {
+                        console.warn(`Rate limit exceeded. Retrying in ${currentDelay}ms...`);
+                        await new Promise(resolve => setTimeout(resolve, currentDelay));
+                        currentDelay *= 2;
+                        continue;
+                    }
+                    
+                    const result = await response.json();
+                    
+                    const part = result?.candidates?.[0]?.content?.parts?.[0];
+                    const audioData = part?.inlineData?.data;
+                    const mimeType = part?.inlineData?.mimeType;
+
+                    if (audioData && mimeType && mimeType.startsWith("audio/L16")) {
+                        const sampleRateMatch = mimeType.match(/rate=(\d+)/);
+                        const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 16000;
+                        
+                        const pcmData = base64ToArrayBuffer(audioData);
+                        const pcm16 = new Int16Array(pcmData);
+                        const wavBlob = pcmToWav(pcm16, sampleRate);
+                        const audioUrl = URL.createObjectURL(wavBlob);
+                        
+                        audioPlayer.src = audioUrl;
+                        audioPlayer.classList.remove('hidden');
+                        audioPlayer.play();
+                    } else {
+                         console.error("Gagal mendapatkan data audio atau format tidak didukung:", result);
+                         // Mengganti alert() dengan pesan di konsol
+                    }
+                    break; // Keluar dari loop jika berhasil
+                } catch (error) {
+                    console.error("Error fetching TTS:", error);
+                    // Tidak perlu menampilkan alert, hanya log
+                    if (i === maxRetries - 1) {
+                        console.error("Gagal menghasilkan audio setelah beberapa kali percobaan.");
+                    } else {
+                         await new Promise(resolve => setTimeout(resolve, currentDelay));
+                         currentDelay *= 2;
+                    }
+                }
+            }
+            
+            ttsButton.disabled = false;
+            ttsIcon.classList.remove('hidden');
+            ttsLoading.classList.add('hidden');
+        };
+
+        ttsButton.addEventListener('click', () => {
+            const summaryText = generateSummaryText();
+            generateTtsAudio(summaryText);
+        });
+
+    </script>
+
 </body>
 </html>
